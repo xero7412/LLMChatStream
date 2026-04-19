@@ -36,11 +36,13 @@ export function InputBar({isStreaming, onSend, onStop}: Props) {
         multiline
         maxLength={2000}
       />
-      {isStreaming ? (
+      {isStreaming && !text.trim() ? (
+        // Streaming with no input — show Stop
         <Pressable style={[styles.button, styles.stopButton]} onPress={onStop}>
           <Text style={styles.stopIcon}>■</Text>
         </Pressable>
       ) : (
+        // Has text (even mid-stream) — Send aborts the current stream and starts a new one
         <Pressable
           style={[
             styles.button,

@@ -1,97 +1,147 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# LLMChatStream
 
-# Getting Started
+A minimal React Native chat app that connects to a streaming LLM endpoint and renders responses smoothly on both iOS and Android — built as a solution to the SSE streaming mobile assignment.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+---
 
-## Step 1: Start Metro
+## Features
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+| Feature | Details |
+|---|---|
+| **Smooth streaming** | Incoming tokens are pushed into a queue and drained one character at a time at a fixed 20 ms cadence — decouples network burst delivery from the render rate, eliminating the jumping/bursting effect |
+| **Blinking cursor ▍** | Rendered inline at the active insertion point using `Animated` opacity loop on the native driver — no layout shift |
+| **Stop button** | Shown when streaming with no text typed; aborts the XHR, clears the token queue, and freezes the bubble instantly with no ghost state |
+| **Interrupt mid-stream** | Typing a new message and tapping Send while a response is rendering stops the current stream immediately and starts a fresh one — no separate Stop step required |
+| **Smart auto-scroll** | Follows new content automatically; disengages when the user scrolls up; re-engages when they scroll back to the bottom |
+| **Markdown rendering** | Completed assistant responses are rendered as Markdown (bold, italic, code blocks, lists, headings, blockquotes); plain text is used during streaming so the cursor stays inline |
+| **Chat persistence** | Conversation history is saved to AsyncStorage and restored on next app launch |
+| **Clear chat** | A "Clear chat" button at the bottom of the conversation wipes history from both state and storage |
+| **Keyboard avoiding** | Input bar lifts correctly when the keyboard appears on both iOS and Android |
+| **Free LLM API** | Uses [Groq](https://console.groq.com) (`llama-3.1-8b-instant`) — free tier, no credit card. Falls back to a built-in mock stream if no API key is set |
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+---
+
+## Prerequisites
+
+- Node.js >= 22
+- React Native CLI environment set up — follow the [official guide](https://reactnative.dev/docs/set-up-your-environment)
+- **iOS**: Xcode + CocoaPods (`bundle install` sets it up)
+- **Android**: Android Studio + an emulator or physical device
+
+---
+
+## Installation
+
+### 1. Clone and install dependencies
 
 ```sh
-# Using npm
-npm start
-
-# OR using Yarn
-yarn start
+git clone <repo-url>
+cd LLMChatStream
+npm install
 ```
 
-## Step 2: Build and run your app
-
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
+### 2. Set up the API key
 
 ```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+cp .env.example .env
 ```
 
-### iOS
+Open `.env` and replace the placeholder with your Groq API key:
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+```
+GROQ_API_KEY=gsk_your_key_here
+```
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+Get a free key at [console.groq.com](https://console.groq.com). If you skip this step the app runs in **mock mode** — all features work with a simulated response, no key required.
+
+### 3. iOS — install native dependencies
 
 ```sh
 bundle install
+LANG=en_US.UTF-8 bundle exec pod install
 ```
 
-Then, and every time you update your native dependencies, run:
+### 4. Start Metro
 
 ```sh
-bundle exec pod install
+npm start -- --reset-cache
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+> The `--reset-cache` flag is required on first run (and after any `.env` change) to pick up the environment variables.
 
+### 5. Run the app
+
+**iOS**
 ```sh
-# Using npm
 npm run ios
-
-# OR using Yarn
-yarn ios
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+**Android**
+```sh
+npm run android
+```
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+---
 
-## Step 3: Modify your app
+## Project Structure
 
-Now that you have successfully run the app, let's make changes!
+```
+src/
+  hooks/
+    useSSEStream.ts       # XHR-based SSE fetch, SSE parser, AbortController, mock fallback
+  components/
+    ChatScreen.tsx        # Root screen — owns all state, token queue, drain interval
+    MessageList.tsx       # FlatList with scroll-lock and keyboard listener
+    MessageBubble.tsx     # Plain Text (streaming) → Markdown (complete) + blinking cursor
+    InputBar.tsx          # TextInput + Send / Stop button
+  types.ts                # Message interface
+  env.d.ts                # @env module type declaration
+```
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+---
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+## How streaming works
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+React Native's `fetch` does not expose `response.body` as a `ReadableStream`. This app uses `XMLHttpRequest` with an `onprogress` handler, which delivers incremental `responseText` as chunks arrive — the correct approach for SSE on bare React Native without third-party streaming libraries.
 
-## Congratulations! :tada:
+```
+Network chunk → XHR onprogress → parse SSE lines → push chars to queue
+                                                           ↓
+                                        setInterval (20 ms) drains one char
+                                                           ↓
+                                              setMessages → re-render
+```
 
-You've successfully run and modified your React Native App. :partying_face:
+---
 
-### Now what?
+## Interrupting a stream
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+The input button adapts to context:
 
-# Troubleshooting
+| Input state | Streaming? | Button shown | Action |
+|---|---|---|---|
+| Empty | No | Send (disabled) | — |
+| Has text | No | Send ↑ | Send message |
+| Empty | Yes | Stop ■ | Abort stream, freeze bubble |
+| Has text | Yes | Send ↑ | Abort current stream, start new one |
 
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+When a new message is sent mid-stream:
 
-# Learn More
+1. `AbortController.abort()` cancels the in-flight XHR immediately
+2. The token queue is cleared — no stale characters will render
+3. The drain interval is stopped
+4. The previous assistant bubble is frozen at whatever text was displayed
+5. A new stream starts for the new message
 
-To learn more about React Native, take a look at the following resources:
+No race conditions, no ghost state.
 
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+---
+
+## Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| `NativeModule is null` (AsyncStorage) | Rebuild the app — native modules require a full build, not just a Metro reload |
+| `model decommissioned` error | The model name in `useSSEStream.ts` may be outdated; replace with a current model from [console.groq.com/docs/models](https://console.groq.com/docs/models) |
+| Env variable is `undefined` | Run Metro with `--reset-cache` after editing `.env` |
+| Pod install encoding error | Run with `LANG=en_US.UTF-8 bundle exec pod install` |

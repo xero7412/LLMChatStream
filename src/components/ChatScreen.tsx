@@ -137,6 +137,16 @@ export function ChatScreen() {
     [startDraining, startStream, stopDraining, stopStream],
   );
 
+  const handleClear = useCallback(() => {
+    stopStream();
+    stopDraining();
+    tokenQueueRef.current = [];
+    isStreamingRef.current = false;
+    setIsStreaming(false);
+    setMessages([]);
+    AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
+  }, [stopDraining, stopStream]);
+
   const handleStop = useCallback(() => {
     stopStream();
     isStreamingRef.current = false;
@@ -162,7 +172,7 @@ export function ChatScreen() {
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <MessageList messages={messages} />
+      <MessageList messages={messages} onClear={handleClear} />
       <InputBar
         isStreaming={isStreaming}
         onSend={sendMessage}

@@ -4,30 +4,40 @@ import {
   Keyboard,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  Pressable,
   StyleSheet,
+  Text,
 } from 'react-native';
 import {Message} from '../types';
 import {MessageBubble} from './MessageBubble';
 
 interface Props {
   messages: Message[];
+  onClear: () => void;
 }
 
-export function MessageList({messages}: Props) {
+function ClearButton({onClear}: {onClear: () => void}) {
+  return (
+    <Pressable
+      style={({pressed}) => [styles.clearButton, pressed && styles.clearButtonPressed]}
+      onPress={onClear}>
+      <Text style={styles.clearText}>🗑 Clear chat</Text>
+    </Pressable>
+  );
+}
+
+export function MessageList({messages, onClear}: Props) {
   const flatListRef = useRef<FlatList<Message>>(null);
   const userScrolledUpRef = useRef(false);
 
   const scrollToEnd = useCallback((animated = false) => {
     if (!userScrolledUpRef.current) {
-      // requestAnimationFrame defers the scroll until after the current paint,
-      // giving Markdown (and any other async-layout components) time to settle
       requestAnimationFrame(() => {
         flatListRef.current?.scrollToEnd({animated});
       });
     }
   }, []);
 
-  // Re-scroll when keyboard appears so the last message isn't hidden behind it
   useEffect(() => {
     const sub = Keyboard.addListener('keyboardDidShow', () =>
       scrollToEnd(true),
@@ -59,6 +69,9 @@ export function MessageList({messages}: Props) {
       data={messages}
       keyExtractor={item => item.id}
       renderItem={({item}) => <MessageBubble message={item} />}
+      ListFooterComponent={
+        messages.length > 0 ? <ClearButton onClear={onClear} /> : null
+      }
       onContentSizeChange={() => scrollToEnd(false)}
       onScrollBeginDrag={handleScrollBeginDrag}
       onScroll={handleScroll}
@@ -71,4 +84,21 @@ export function MessageList({messages}: Props) {
 const styles = StyleSheet.create({
   list: {flex: 1},
   content: {paddingVertical: 12},
+  clearButton: {
+    alignSelf: 'center',
+    marginVertical: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    backgroundColor: '#fafafa',
+  },
+  clearButtonPressed: {
+    backgroundColor: '#f0f0f0',
+  },
+  clearText: {
+    fontSize: 13,
+    color: '#999',
+  },
 });
