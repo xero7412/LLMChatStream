@@ -6,7 +6,7 @@ A minimal React Native chat app that connects to a streaming LLM endpoint and re
 
 ## Demo
 
-https://github.com/user-attachments/assets/your-video-id-here
+https://github.com/user-attachments/assets/70dd2b81-cb92-40cf-9480-781b47699a3c
 
 > Record a screen capture and drag it into any GitHub Issue comment box — GitHub will host it and give you a URL in the format above. Replace the URL above with that link.
 
